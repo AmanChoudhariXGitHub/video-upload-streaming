@@ -299,16 +299,73 @@ npm start
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
 
+### Fixing "No Production Deployment" Error on Vercel
+
+If you see "Your Production Domain is not serving traffic" on Vercel:
+
+1. **Check Vercel Project Settings**
+   - Go to Settings → General
+   - Verify these settings:
+     ```
+     Framework Preset: Next.js
+     Root Directory: ./  (root, not /frontend)
+     Build Command: npm run build
+     Output Directory: .next
+     Install Command: npm install
+     ```
+
+2. **Add Environment Variables**
+   - Go to Settings → Environment Variables
+   - Add: `NEXT_PUBLIC_API_URL` = `https://your-backend-url.railway.app/api`
+
+3. **Deploy Backend First**
+   - Frontend needs backend URL to be configured
+   - Deploy backend to Railway/Render first
+   - Then add backend URL to Vercel environment variables
+
+4. **Trigger Deployment**
+   ```bash
+   git add .
+   git commit -m "fix: configure vercel deployment"
+   git push origin main
+   ```
+
+**Common Issues:**
+- Backend must be deployed before frontend
+- Environment variables must be set before build
+- Make sure you're pushing to the `main` branch
+- Check build logs for specific errors
+
 ### Quick Deploy
 
-**Frontend (Vercel):**
+**Step 1 - Deploy Backend (Railway):**
 ```bash
-vercel deploy
+# Option A: Using Railway CLI
+railway init
+railway up
+
+# Option B: Using Railway Dashboard
+# 1. Go to railway.app
+# 2. New Project → Deploy from GitHub
+# 3. Set Root Directory: backend
+# 4. Add JWT_SECRET environment variable
 ```
 
-**Backend (Railway):**
+**Step 2 - Deploy Frontend (Vercel):**
 ```bash
-railway up
+# Option A: Using Vercel CLI
+vercel deploy
+
+# Option B: Using Vercel Dashboard
+# 1. Import project from GitHub
+# 2. Add NEXT_PUBLIC_API_URL environment variable
+# 3. Deploy
+```
+
+**Step 3 - Update Backend CORS:**
+```bash
+# Add frontend URL to backend environment variables
+FRONTEND_URL=https://your-app.vercel.app
 ```
 
 ## Design Decisions
