@@ -19,6 +19,7 @@ import { VideoUploader } from "./video-uploader"
 import { VideoPlayer } from "./video-player"
 import { useAuth } from "./auth-provider"
 import { Video, Eye, Clock, CheckCircle2, AlertTriangle, Trash2, Edit2, Play } from "lucide-react"
+import { apiClient } from "@/lib/api-client"
 
 export function UserDashboard() {
   const { user, logout } = useAuth()
@@ -34,9 +35,8 @@ export function UserDashboard() {
 
   const loadVideos = async () => {
     try {
-      const response = await fetch("/api/user/videos")
-      const data = await response.json()
-      setVideos(data.videos)
+      const data = await apiClient.getVideos()
+      setVideos(data)
     } catch (error) {
       console.error("[v0] Load videos error:", error)
     } finally {
@@ -60,16 +60,9 @@ export function UserDashboard() {
     if (!editingVideo) return
 
     try {
-      const response = await fetch(`/api/user/videos/${editingVideo.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
-      })
-
-      if (response.ok) {
-        setEditingVideo(null)
-        loadVideos()
-      }
+      await apiClient.updateVideo(editingVideo._id, editForm)
+      setEditingVideo(null)
+      loadVideos()
     } catch (error) {
       console.error("[v0] Update video error:", error)
     }
@@ -79,13 +72,8 @@ export function UserDashboard() {
     if (!confirm("Are you sure you want to delete this video?")) return
 
     try {
-      const response = await fetch(`/api/user/videos/${videoId}`, {
-        method: "DELETE",
-      })
-
-      if (response.ok) {
-        loadVideos()
-      }
+      await apiClient.deleteVideo(videoId)
+      loadVideos()
     } catch (error) {
       console.error("[v0] Delete video error:", error)
     }
@@ -103,13 +91,6 @@ export function UserDashboard() {
     return new Date(date).toLocaleDateString()
   }
 
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return "Unknown"
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, "0")}`
-  }
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -120,7 +101,7 @@ export function UserDashboard() {
 
   const stats = {
     totalVideos: videos.length,
-    totalViews: videos.reduce((sum, v) => sum + v.views, 0),
+    totalViews: videos.reduce((sum, v) => sum + (v.views || 0), 0),
     readyVideos: videos.filter((v) => v.status === "ready").length,
     processingVideos: videos.filter((v) => v.status === "processing").length,
   }
@@ -132,7 +113,7 @@ export function UserDashboard() {
         <div className="container mx-auto flex items-center justify-between p-4">
           <div>
             <h1 className="text-2xl font-bold">My Videos</h1>
-            <p className="text-sm text-muted-foreground">Welcome back, {user?.username}</p>
+            <p className="text-sm text-muted-foreground">Welcome back, {user?.email}</p>
           </div>
           <Button onClick={logout} variant="outline">
             Logout
@@ -248,11 +229,11 @@ export function UserDashboard() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {videos.map((video) => (
-                <Card key={video.id} className="overflow-hidden">
+                <Card key={video._id} className="overflow-hidden">
                   <div className="relative aspect-video bg-muted">
                     {video.thumbnail ? (
                       <img
-                        src={video.thumbnail || "/placeholder.svg"}
+                        src={apiClient.getThumbnailUrl(video._id) || "/placeholder.svg"}
                         alt={video.title}
                         className="h-full w-full object-cover"
                       />
@@ -264,7 +245,7 @@ export function UserDashboard() {
 
                     {video.status === "ready" && (
                       <button
-                        onClick={() => setPlayingVideo(video.id)}
+                        onClick={() => setPlayingVideo(video._id)}
                         className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity hover:opacity-100"
                       >
                         <Play className="h-16 w-16 text-white" />
@@ -293,19 +274,17 @@ export function UserDashboard() {
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />
-                        {video.views} views
+                        {video.views || 0} views
                       </span>
                       <span>{formatDate(video.createdAt)}</span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                      <div>Duration: {formatDuration(video.duration)}</div>
                       <div>Size: {formatBytes(video.size)}</div>
-                      <div>Format: {video.format}</div>
-                      <div>Resolution: {video.resolution || "N/A"}</div>
+                      <div>Format: {video.mimeType?.split("/")[1] || "N/A"}</div>
                     </div>
 
-                    {video.sensitivityStatus === "flagged" && (
+                    {video.sensitivity?.status === "flagged" && (
                       <div className="flex items-center gap-2 rounded-md border border-yellow-500/50 bg-yellow-500/10 p-2 text-xs text-yellow-500">
                         <AlertTriangle className="h-3 w-3" />
                         Flagged for review
@@ -320,7 +299,7 @@ export function UserDashboard() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleDeleteVideo(video.id)}
+                        onClick={() => handleDeleteVideo(video._id)}
                         className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
                       >
                         <Trash2 className="h-3 w-3" />

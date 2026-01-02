@@ -1,12 +1,12 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Play, Pause, Volume2, VolumeX, Maximize, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { apiClient } from "@/lib/api-client"
 
 interface VideoPlayerProps {
   videoId: string
@@ -15,7 +15,7 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ videoId, autoplay = false, controls = true }: VideoPlayerProps) {
-  const [manifest, setManifest] = useState<any>(null)
+  const [video, setVideo] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
@@ -24,88 +24,74 @@ export function VideoPlayer({ videoId, autoplay = false, controls = true }: Vide
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
-    loadManifest()
+    loadVideo()
   }, [videoId])
 
-  const loadManifest = async () => {
+  const loadVideo = async () => {
     try {
-      const response = await fetch(`/api/stream/${videoId}/manifest`)
-      const data = await response.json()
+      const data = await apiClient.getVideo(videoId)
 
-      if (!response.ok) {
-        setError(data.error || "Failed to load video")
+      if (data.status !== "ready") {
+        setError("Video is not ready for playback")
         return
       }
 
-      if (data.sensitivityStatus === "flagged") {
+      if (data.sensitivity?.status === "flagged") {
         setError("This video contains sensitive content and is pending review")
         return
       }
 
-      setManifest(data)
-      setDuration(data.duration || 0)
+      setVideo(data)
+      setDuration(data.duration || 300) // Default 5 minutes for simulation
 
       // Track view
-      trackEvent("view")
+      await apiClient.trackView(videoId)
     } catch (err) {
-      console.error("[v0] Manifest load error:", err)
+      console.error("[v0] Video load error:", err)
       setError("Failed to load video")
     }
   }
 
-  const trackEvent = async (event: string, metadata?: any) => {
-    try {
-      await fetch("/api/analytics/track", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId, event, metadata }),
-      })
-    } catch (err) {
-      console.error("[v0] Analytics error:", err)
+  useEffect(() => {
+    if (autoplay && video) {
+      handlePlayPause()
     }
-  }
+  }, [video])
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setCurrentTime((prev) => {
+          if (prev >= duration) {
+            setIsPlaying(false)
+            return duration
+          }
+          return prev + 1
+        })
+      }, 1000)
+    }
+    return () => clearInterval(interval)
+  }, [isPlaying, duration])
 
   const handlePlayPause = () => {
-    if (!videoRef.current) return
-
-    if (isPlaying) {
-      videoRef.current.pause()
-      trackEvent("pause", { currentTime })
-    } else {
-      videoRef.current.play()
-      trackEvent("play", { currentTime })
-    }
-
+    if (!video) return
     setIsPlaying(!isPlaying)
   }
 
   const handleMuteToggle = () => {
-    if (!videoRef.current) return
-    videoRef.current.muted = !isMuted
     setIsMuted(!isMuted)
   }
 
   const handleFullscreen = () => {
-    if (!videoRef.current) return
-    if (videoRef.current.requestFullscreen) {
-      videoRef.current.requestFullscreen()
+    const container = videoRef.current?.parentElement
+    if (container?.requestFullscreen) {
+      container.requestFullscreen()
     }
   }
 
-  const handleTimeUpdate = () => {
-    if (!videoRef.current) return
-    setCurrentTime(videoRef.current.currentTime)
-  }
-
-  const handleEnded = () => {
-    setIsPlaying(false)
-    trackEvent("complete", { duration: currentTime })
-  }
-
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!videoRef.current) return
     const time = Number.parseFloat(e.target.value)
-    videoRef.current.currentTime = time
     setCurrentTime(time)
   }
 
@@ -124,7 +110,7 @@ export function VideoPlayer({ videoId, autoplay = false, controls = true }: Vide
     )
   }
 
-  if (!manifest) {
+  if (!video) {
     return (
       <Card>
         <CardContent className="flex h-96 items-center justify-center">
@@ -138,12 +124,12 @@ export function VideoPlayer({ videoId, autoplay = false, controls = true }: Vide
     <Card>
       <CardContent className="p-0">
         <div className="relative bg-black">
-          {/* Video element - simulated streaming */}
+          {/* Video display area */}
           <div className="relative aspect-video bg-black">
-            {manifest.thumbnail ? (
+            {video.thumbnail ? (
               <img
-                src={manifest.thumbnail || "/placeholder.svg"}
-                alt={manifest.title}
+                src={apiClient.getThumbnailUrl(videoId) || "/placeholder.svg"}
+                alt={video.title}
                 className="absolute inset-0 h-full w-full object-cover"
               />
             ) : (
@@ -154,10 +140,11 @@ export function VideoPlayer({ videoId, autoplay = false, controls = true }: Vide
 
             {/* Simulated video playback overlay */}
             {isPlaying && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <div className="absolute inset-0 flex items-center justify-center bg-black/70">
                 <div className="text-center text-white">
                   <div className="text-6xl font-bold">{formatTime(currentTime)}</div>
-                  <div className="text-sm text-white/70">Video playing (simulated)</div>
+                  <div className="text-sm text-white/70">Simulated playback</div>
+                  <div className="mt-2 text-xs text-white/50">Stream URL: {apiClient.getStreamUrl(videoId)}</div>
                 </div>
               </div>
             )}
@@ -166,9 +153,7 @@ export function VideoPlayer({ videoId, autoplay = false, controls = true }: Vide
             <video
               ref={videoRef}
               className="hidden h-full w-full"
-              onTimeUpdate={handleTimeUpdate}
-              onEnded={handleEnded}
-              autoPlay={autoplay}
+              src={apiClient.getStreamUrl(videoId)}
               muted={isMuted}
             />
           </div>
@@ -213,7 +198,7 @@ export function VideoPlayer({ videoId, autoplay = false, controls = true }: Vide
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="text-sm text-white/70">{manifest.views} views</div>
+                  <div className="text-sm text-white/70">{video.views || 0} views</div>
                   <Button
                     size="icon"
                     variant="ghost"
@@ -230,14 +215,14 @@ export function VideoPlayer({ videoId, autoplay = false, controls = true }: Vide
 
         {/* Video info */}
         <div className="p-4">
-          <h3 className="text-lg font-semibold">{manifest.title}</h3>
-          {manifest.description && <p className="mt-1 text-sm text-muted-foreground">{manifest.description}</p>}
+          <h3 className="text-lg font-semibold">{video.title}</h3>
+          {video.description && <p className="mt-1 text-sm text-muted-foreground">{video.description}</p>}
           <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
-            <span>{manifest.resolution}</span>
-            <span>{formatTime(manifest.duration)}</span>
-            {manifest.sensitivityStatus && (
-              <span className={manifest.sensitivityStatus === "safe" ? "text-green-500" : "text-yellow-500"}>
-                {manifest.sensitivityStatus}
+            <span>{formatBytes(video.size)}</span>
+            <span>{video.mimeType}</span>
+            {video.sensitivity?.status && (
+              <span className={video.sensitivity.status === "safe" ? "text-green-500" : "text-yellow-500"}>
+                {video.sensitivity.status}
               </span>
             )}
           </div>
@@ -245,4 +230,12 @@ export function VideoPlayer({ videoId, autoplay = false, controls = true }: Vide
       </CardContent>
     </Card>
   )
+}
+
+function formatBytes(bytes: number) {
+  if (bytes === 0) return "0 Bytes"
+  const k = 1024
+  const sizes = ["Bytes", "KB", "MB", "GB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${Math.round((bytes / Math.pow(k, i)) * 100) / 100} ${sizes[i]}`
 }

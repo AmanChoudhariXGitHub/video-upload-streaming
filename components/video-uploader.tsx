@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,14 +10,17 @@ import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Upload, File, CheckCircle2, AlertCircle } from "lucide-react"
+import { apiClient } from "@/lib/api-client"
+import { socketClient } from "@/lib/socket-client"
 
-const CHUNK_SIZE = 1024 * 1024 // 1MB chunks
+const CHUNK_SIZE = 1024 * 1024 * 5 // 5MB chunks
 
 interface UploadState {
   status: "idle" | "uploading" | "processing" | "complete" | "error"
   progress: number
   videoId?: string
   error?: string
+  currentStep?: string
 }
 
 export function VideoUploader({ onComplete }: { onComplete?: (videoId: string) => void }) {
@@ -30,6 +32,63 @@ export function VideoUploader({ onComplete }: { onComplete?: (videoId: string) =
     progress: 0,
   })
 
+  useEffect(() => {
+    const socket = socketClient.connect()
+
+    socketClient.onUploadProgress((data) => {
+      console.log("[v0] Upload progress:", data)
+      setUploadState((prev) => ({
+        ...prev,
+        progress: data.progress,
+      }))
+    })
+
+    socketClient.onUploadComplete((data) => {
+      console.log("[v0] Upload complete:", data)
+      setUploadState((prev) => ({
+        ...prev,
+        status: "processing",
+        progress: 0,
+      }))
+    })
+
+    socketClient.onProcessingStarted((data) => {
+      console.log("[v0] Processing started:", data)
+    })
+
+    socketClient.onProcessingProgress((data) => {
+      console.log("[v0] Processing progress:", data)
+      setUploadState((prev) => ({
+        ...prev,
+        progress: data.totalProgress,
+        currentStep: data.label,
+      }))
+    })
+
+    socketClient.onProcessingCompleted((data) => {
+      console.log("[v0] Processing completed:", data)
+      setUploadState({
+        status: "complete",
+        progress: 100,
+        videoId: data.videoId,
+      })
+      onComplete?.(data.videoId)
+    })
+
+    socketClient.onProcessingError((data) => {
+      console.error("[v0] Processing error:", data)
+      setUploadState({
+        status: "error",
+        progress: 0,
+        error: data.error,
+      })
+    })
+
+    return () => {
+      socketClient.disconnect()
+    }
+  }, [onComplete])
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
@@ -40,49 +99,18 @@ export function VideoUploader({ onComplete }: { onComplete?: (videoId: string) =
     }
   }
 
-  const uploadChunk = async (videoId: string, chunk: Blob, index: number, total: number) => {
-    const formData = new FormData()
-    formData.append("videoId", videoId)
-    formData.append("chunkIndex", index.toString())
-    formData.append("totalChunks", total.toString())
-    formData.append("chunk", chunk)
-
-    const response = await fetch("/api/upload/chunk", {
-      method: "POST",
-      body: formData,
-    })
-
-    if (!response.ok) {
-      throw new Error("Chunk upload failed")
-    }
-
-    return response.json()
-  }
-
   const handleUpload = async () => {
     if (!file) return
 
     try {
       setUploadState({ status: "uploading", progress: 0 })
 
-      // Initialize upload
-      const initResponse = await fetch("/api/upload/init", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename: file.name,
-          size: file.size,
-          title,
-          description,
-        }),
-      })
+      const { videoId } = await apiClient.initUpload(file.name, file.size, file.type, title, description)
 
-      if (!initResponse.ok) {
-        const error = await initResponse.json()
-        throw new Error(error.error || "Upload initialization failed")
-      }
+      console.log("[v0] Upload initialized:", videoId)
 
-      const { videoId } = await initResponse.json()
+      // Subscribe to video updates
+      socketClient.subscribeToVideo(videoId)
 
       // Upload chunks
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
@@ -92,26 +120,24 @@ export function VideoUploader({ onComplete }: { onComplete?: (videoId: string) =
         const end = Math.min(start + CHUNK_SIZE, file.size)
         const chunk = file.slice(start, end)
 
-        const result = await uploadChunk(videoId, chunk, i, totalChunks)
+        await apiClient.uploadChunk(videoId, i, totalChunks, chunk)
 
+        const progress = ((i + 1) / totalChunks) * 100
         setUploadState({
           status: "uploading",
-          progress: result.progress || ((i + 1) / totalChunks) * 100,
+          progress,
           videoId,
         })
-
-        if (result.complete) {
-          setUploadState({
-            status: "processing",
-            progress: 100,
-            videoId,
-          })
-
-          // Start polling for processing status
-          pollProcessingStatus(videoId)
-          return
-        }
       }
+
+      // Complete upload
+      await apiClient.completeUpload(videoId, totalChunks)
+
+      setUploadState({
+        status: "processing",
+        progress: 0,
+        videoId,
+      })
     } catch (error) {
       console.error("[v0] Upload error:", error)
       setUploadState({
@@ -122,48 +148,10 @@ export function VideoUploader({ onComplete }: { onComplete?: (videoId: string) =
     }
   }
 
-  const pollProcessingStatus = async (videoId: string) => {
-    const maxAttempts = 60 // 5 minutes max
-    let attempts = 0
-
-    const poll = async () => {
-      try {
-        const response = await fetch(`/api/upload/status/${videoId}`)
-        const data = await response.json()
-
-        if (data.video.status === "ready") {
-          setUploadState({
-            status: "complete",
-            progress: 100,
-            videoId,
-          })
-          onComplete?.(videoId)
-          return
-        }
-
-        if (data.video.status === "failed") {
-          throw new Error("Processing failed")
-        }
-
-        attempts++
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 5000) // Poll every 5 seconds
-        }
-      } catch (error) {
-        console.error("[v0] Status poll error:", error)
-        setUploadState({
-          status: "error",
-          progress: 0,
-          videoId,
-          error: "Processing failed",
-        })
-      }
-    }
-
-    poll()
-  }
-
   const resetUploader = () => {
+    if (uploadState.videoId) {
+      socketClient.unsubscribeFromVideo(uploadState.videoId)
+    }
     setFile(null)
     setTitle("")
     setDescription("")
@@ -229,7 +217,7 @@ export function VideoUploader({ onComplete }: { onComplete?: (videoId: string) =
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium">
-                  {uploadState.status === "uploading" ? "Uploading..." : "Processing..."}
+                  {uploadState.status === "uploading" ? "Uploading..." : uploadState.currentStep || "Processing..."}
                 </span>
                 <span className="text-muted-foreground">{uploadState.progress.toFixed(0)}%</span>
               </div>

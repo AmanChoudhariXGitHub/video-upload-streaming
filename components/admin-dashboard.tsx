@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Video, Users, Eye, AlertTriangle, CheckCircle2, XCircle, Clock, Trash2, Database } from "lucide-react"
 import { useAuth } from "./auth-provider"
+import { apiClient } from "@/lib/api-client"
 
 export function AdminDashboard() {
   const { logout } = useAuth()
@@ -23,19 +24,15 @@ export function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      const [statsRes, videosRes, usersRes] = await Promise.all([
-        fetch("/api/admin/stats"),
-        fetch("/api/admin/videos"),
-        fetch("/api/admin/users"),
+      const [statsData, videosData, usersData] = await Promise.all([
+        apiClient.getAdminStats(),
+        apiClient.getVideos(),
+        apiClient.getUsers(),
       ])
 
-      const statsData = await statsRes.json()
-      const videosData = await videosRes.json()
-      const usersData = await usersRes.json()
-
       setStats(statsData)
-      setVideos(videosData.videos)
-      setUsers(usersData.users)
+      setVideos(videosData)
+      setUsers(usersData)
     } catch (error) {
       console.error("[v0] Load data error:", error)
     } finally {
@@ -43,17 +40,10 @@ export function AdminDashboard() {
     }
   }
 
-  const updateVideoStatus = async (videoId: string, sensitivityStatus: string) => {
+  const updateVideoSensitivity = async (videoId: string, status: string) => {
     try {
-      const response = await fetch(`/api/admin/videos/${videoId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sensitivityStatus }),
-      })
-
-      if (response.ok) {
-        loadData()
-      }
+      await apiClient.updateVideoSensitivity(videoId, status)
+      loadData()
     } catch (error) {
       console.error("[v0] Update video error:", error)
     }
@@ -63,15 +53,19 @@ export function AdminDashboard() {
     if (!confirm("Are you sure you want to delete this video?")) return
 
     try {
-      const response = await fetch(`/api/admin/videos/${videoId}`, {
-        method: "DELETE",
-      })
-
-      if (response.ok) {
-        loadData()
-      }
+      await apiClient.deleteVideo(videoId)
+      loadData()
     } catch (error) {
       console.error("[v0] Delete video error:", error)
+    }
+  }
+
+  const updateUserRole = async (userId: string, role: string) => {
+    try {
+      await apiClient.updateUserRole(userId, role)
+      loadData()
+    } catch (error) {
+      console.error("[v0] Update user role error:", error)
     }
   }
 
@@ -117,7 +111,7 @@ export function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.totalVideos || 0}</div>
-              <p className="text-xs text-muted-foreground">{stats?.videosByStatus.ready || 0} ready to stream</p>
+              <p className="text-xs text-muted-foreground">{stats?.readyVideos || 0} ready to stream</p>
             </CardContent>
           </Card>
 
@@ -149,7 +143,7 @@ export function AdminDashboard() {
               <Database className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatBytes(stats?.storageSize || 0)}</div>
+              <div className="text-2xl font-bold">{formatBytes(stats?.storageUsed || 0)}</div>
               <p className="text-xs text-muted-foreground">Total storage</p>
             </CardContent>
           </Card>
@@ -167,21 +161,21 @@ export function AdminDashboard() {
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                   Ready
                 </span>
-                <span className="font-medium">{stats?.videosByStatus.ready || 0}</span>
+                <span className="font-medium">{stats?.readyVideos || 0}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-500" />
                   Processing
                 </span>
-                <span className="font-medium">{stats?.videosByStatus.processing || 0}</span>
+                <span className="font-medium">{stats?.processingVideos || 0}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <XCircle className="h-4 w-4 text-red-500" />
                   Failed
                 </span>
-                <span className="font-medium">{stats?.videosByStatus.failed || 0}</span>
+                <span className="font-medium">0</span>
               </div>
             </CardContent>
           </Card>
@@ -196,41 +190,41 @@ export function AdminDashboard() {
                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                   Safe
                 </span>
-                <span className="font-medium">{stats?.videosBySensitivity.safe || 0}</span>
+                <span className="font-medium">{videos.filter((v) => v.sensitivity?.status === "safe").length}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-yellow-500" />
                   Flagged
                 </span>
-                <span className="font-medium">{stats?.videosBySensitivity.flagged || 0}</span>
+                <span className="font-medium">{stats?.flaggedVideos || 0}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-500" />
                   Pending
                 </span>
-                <span className="font-medium">{stats?.videosBySensitivity.pending || 0}</span>
+                <span className="font-medium">{videos.filter((v) => v.sensitivity?.status === "pending").length}</span>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">CDN Cache</CardTitle>
+              <CardTitle className="text-sm font-medium">Processing Jobs</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span>Cached Items</span>
-                <span className="font-medium">{stats?.cdn.size || 0}</span>
+                <span>Recent Jobs</span>
+                <span className="font-medium">{stats?.recentJobs?.length || 0}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span>Max Capacity</span>
-                <span className="font-medium">{stats?.cdn.maxSize || 0}</span>
+                <span>In Progress</span>
+                <span className="font-medium">{stats?.processingVideos || 0}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span>Usage</span>
-                <span className="font-medium">{Math.round((stats?.cdn.size / stats?.cdn.maxSize) * 100) || 0}%</span>
+                <span>Completed</span>
+                <span className="font-medium">{stats?.readyVideos || 0}</span>
               </div>
             </CardContent>
           </Card>
@@ -265,7 +259,7 @@ export function AdminDashboard() {
                   </TableHeader>
                   <TableBody>
                     {videos.map((video) => (
-                      <TableRow key={video.id}>
+                      <TableRow key={video._id}>
                         <TableCell className="font-medium">{video.title}</TableCell>
                         <TableCell>{video.userId}</TableCell>
                         <TableCell>
@@ -283,8 +277,8 @@ export function AdminDashboard() {
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={video.sensitivityStatus}
-                            onValueChange={(value) => updateVideoStatus(video.id, value)}
+                            value={video.sensitivity?.status || "pending"}
+                            onValueChange={(value) => updateVideoSensitivity(video._id, value)}
                           >
                             <SelectTrigger className="w-32">
                               <SelectValue />
@@ -296,11 +290,11 @@ export function AdminDashboard() {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell>{video.views}</TableCell>
+                        <TableCell>{video.views || 0}</TableCell>
                         <TableCell>{formatBytes(video.size)}</TableCell>
                         <TableCell className="text-sm">{formatDate(video.createdAt)}</TableCell>
                         <TableCell>
-                          <Button size="icon" variant="ghost" onClick={() => deleteVideo(video.id)}>
+                          <Button size="icon" variant="ghost" onClick={() => deleteVideo(video._id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </TableCell>
@@ -316,29 +310,42 @@ export function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>User Management</CardTitle>
-                <CardDescription>View all registered users</CardDescription>
+                <CardDescription>View and manage all registered users</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Username</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Role</TableHead>
-                      <TableHead>Videos</TableHead>
+                      <TableHead>Tenant</TableHead>
                       <TableHead>Joined</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {users.map((user) => (
                       <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.username}</TableCell>
-                        <TableCell>{user.email}</TableCell>
+                        <TableCell className="font-medium">{user.email}</TableCell>
                         <TableCell>
-                          <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role}</Badge>
+                          <Select value={user.role} onValueChange={(value) => updateUserRole(user.id, value)}>
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="editor">Editor</SelectItem>
+                              <SelectItem value="viewer">Viewer</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </TableCell>
-                        <TableCell>{user.videoCount}</TableCell>
+                        <TableCell>{user.tenant}</TableCell>
                         <TableCell className="text-sm">{formatDate(user.createdAt)}</TableCell>
+                        <TableCell>
+                          <Button size="sm" variant="outline" disabled>
+                            Manage
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
