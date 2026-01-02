@@ -32,6 +32,46 @@ A full-stack video upload and streaming application with real-time processing up
 - **Multer** - File upload handling
 - **Bcrypt** - Password hashing
 
+## Project Structure
+
+```
+video-upload-streaming/
+├── frontend/                # Next.js frontend application
+│   ├── app/                # Next.js app directory
+│   │   ├── admin/         # Admin dashboard
+│   │   ├── dashboard/     # User dashboard
+│   │   ├── login/         # Login page
+│   │   └── page.tsx       # Home page
+│   ├── components/        # React components
+│   │   ├── ui/           # Shadcn UI components
+│   │   ├── auth-provider.tsx
+│   │   ├── video-uploader.tsx
+│   │   ├── video-player.tsx
+│   │   ├── user-dashboard.tsx
+│   │   └── admin-dashboard.tsx
+│   ├── lib/              # Utilities
+│   │   ├── api-client.ts
+│   │   └── socket-client.ts
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── next.config.mjs
+│   └── .env.local
+├── backend/              # Express backend server
+│   ├── src/
+│   │   ├── config/      # Configuration
+│   │   ├── models/      # Data models
+│   │   ├── middleware/  # Express middleware
+│   │   ├── routes/      # API routes
+│   │   ├── services/    # Business logic
+│   │   ├── utils/       # Utilities
+│   │   └── server.js    # Entry point
+│   ├── storage/         # File storage (uploads, processed)
+│   ├── package.json
+│   └── .env
+├── README.md
+└── DEPLOYMENT-GUIDE.md
+```
+
 ## Quick Start
 
 ### Prerequisites
@@ -49,7 +89,9 @@ cd video-upload-streaming
 
 2. **Install frontend dependencies**
 ```bash
+cd frontend
 npm install
+cd ..
 ```
 
 3. **Install backend dependencies**
@@ -61,9 +103,9 @@ cd ..
 
 4. **Configure environment variables**
 
-Create `.env.local` in the root:
+Create `frontend/.env.local`:
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
 Create `backend/.env`:
@@ -82,6 +124,7 @@ npm run dev
 
 6. **Start the frontend (in a new terminal)**
 ```bash
+cd frontend
 npm run dev
 ```
 
@@ -227,44 +270,12 @@ The application comes with pre-configured demo accounts:
 - `processing:completed` - Processing completed
 - `processing:error` - Processing error
 
-## Project Structure
-
-```
-.
-├── app/                    # Next.js app directory
-│   ├── admin/             # Admin dashboard
-│   ├── dashboard/         # User dashboard
-│   ├── login/             # Login page
-│   └── page.tsx           # Home page
-├── components/            # React components
-│   ├── ui/               # Shadcn UI components
-│   ├── auth-provider.tsx # Auth context
-│   ├── video-uploader.tsx
-│   ├── video-player.tsx
-│   ├── user-dashboard.tsx
-│   └── admin-dashboard.tsx
-├── lib/                   # Utilities
-│   ├── api-client.ts     # Backend API client
-│   └── socket-client.ts  # Socket.io client
-├── backend/              # Express backend
-│   ├── src/
-│   │   ├── config/       # Configuration
-│   │   ├── models/       # Data models
-│   │   ├── middleware/   # Express middleware
-│   │   ├── routes/       # API routes
-│   │   ├── services/     # Business logic
-│   │   ├── utils/        # Utilities
-│   │   └── server.js     # Entry point
-│   └── storage/          # File storage
-└── README.md
-```
-
 ## Architecture
 
 The application follows a client-server architecture with real-time communication:
 
-- **Frontend**: Next.js app providing UI and user interactions
-- **Backend**: Express API handling business logic and file operations
+- **Frontend**: Next.js app in `/frontend` directory providing UI and user interactions
+- **Backend**: Express API in `/backend` directory handling business logic and file operations
 - **Real-time Layer**: Socket.io for bidirectional updates
 - **Storage**: Local filesystem (can be replaced with S3/cloud storage)
 - **Database**: Simulated MongoDB (replace with real MongoDB for production)
@@ -277,6 +288,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
 
 ```bash
 # Frontend tests
+cd frontend
 npm test
 
 # Backend tests
@@ -288,6 +300,7 @@ npm test
 
 ```bash
 # Frontend build
+cd frontend
 npm run build
 
 # Backend (no build needed, runs on Node.js)
@@ -297,80 +310,59 @@ npm start
 
 ## Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+**See [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md) for complete step-by-step instructions.**
 
-### Fixing "No Production Deployment" Error on Vercel
+### Quick Summary
 
-If you see "Your Production Domain is not serving traffic" on Vercel:
+**Backend → Render/Railway:**
+1. Connect GitHub repository
+2. Set root directory to `backend`
+3. Add environment variables
+4. Deploy and get backend URL
 
-1. **Check Vercel Project Settings**
-   - Go to Settings → General
-   - Verify these settings:
-     ```
-     Framework Preset: Next.js
-     Root Directory: ./  (root, not /frontend)
-     Build Command: npm run build
-     Output Directory: .next
-     Install Command: npm install
-     ```
+**Frontend → Vercel:**
+1. Import GitHub repository
+2. Set root directory to `frontend`
+3. Add `NEXT_PUBLIC_API_URL` with backend URL
+4. Deploy
 
-2. **Add Environment Variables**
-   - Go to Settings → Environment Variables
-   - Add: `NEXT_PUBLIC_API_URL` = `https://your-backend-url.railway.app/api`
+**Important:** Deploy backend first, then use its URL in frontend environment variables.
 
-3. **Deploy Backend First**
-   - Frontend needs backend URL to be configured
-   - Deploy backend to Railway/Render first
-   - Then add backend URL to Vercel environment variables
+### Deployment Requirements Checklist
 
-4. **Trigger Deployment**
-   ```bash
-   git add .
-   git commit -m "fix: configure vercel deployment"
-   git push origin main
-   ```
-
-**Common Issues:**
-- Backend must be deployed before frontend
-- Environment variables must be set before build
-- Make sure you're pushing to the `main` branch
-- Check build logs for specific errors
-
-### Quick Deploy
-
-**Step 1 - Deploy Backend (Railway):**
-```bash
-# Option A: Using Railway CLI
-railway init
-railway up
-
-# Option B: Using Railway Dashboard
-# 1. Go to railway.app
-# 2. New Project → Deploy from GitHub
-# 3. Set Root Directory: backend
-# 4. Add JWT_SECRET environment variable
+✅ **Repository Structure**
+```
+video-upload-streaming/
+  ├── frontend/    (Next.js app)
+  ├── backend/     (Express API)
+  └── README.md
 ```
 
-**Step 2 - Deploy Frontend (Vercel):**
-```bash
-# Option A: Using Vercel CLI
-vercel deploy
+✅ **Backend Features**
+- Node.js + Express server
+- MongoDB (simulated, ready for real connection)
+- Video upload endpoint with chunked uploads
+- Video streaming with HTTP range requests
+- Simulated sensitivity analysis
+- Socket.io real-time progress updates
+- JWT authentication + RBAC
 
-# Option B: Using Vercel Dashboard
-# 1. Import project from GitHub
-# 2. Add NEXT_PUBLIC_API_URL environment variable
-# 3. Deploy
-```
+✅ **Frontend Features**
+- Upload UI with progress tracking
+- Real-time processing progress via Socket.io
+- Video list with status indicators
+- Video player with streaming support
+- Admin dashboard for moderation
+- User dashboard for management
 
-**Step 3 - Update Backend CORS:**
-```bash
-# Add frontend URL to backend environment variables
-FRONTEND_URL=https://your-app.vercel.app
-```
+✅ **Deployment**
+- Frontend: Vercel-ready with proper configuration
+- Backend: Works on Render, Railway, Fly.io, or Heroku
+- Both publicly accessible with production URLs
 
 ## Design Decisions
 
-### Why Simulated Processing?
+- **Why Simulated Processing?**
 
 The assignment requires simulated video processing to demonstrate the system architecture without heavy FFmpeg dependencies. Real processing can be added by:
 
@@ -378,14 +370,14 @@ The assignment requires simulated video processing to demonstrate the system arc
 2. Replacing simulated functions in `backend/src/services/videoProcessor.js`
 3. Using child processes to run FFmpeg commands
 
-### Why In-Memory Database?
+- **Why In-Memory Database?**
 
 For simplicity and portability. Production deployment should use:
 - MongoDB for data persistence
 - Redis for caching
 - S3 for file storage
 
-### Why Socket.io?
+- **Why Socket.io?**
 
 Real-time updates are critical for:
 - Upload progress tracking
@@ -443,7 +435,7 @@ MIT License - see LICENSE file for details
 
 For issues or questions:
 - Open an issue on GitHub
-- Contact: [Your contact information]
+- Check [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md) for deployment help
 
 ## Acknowledgments
 
