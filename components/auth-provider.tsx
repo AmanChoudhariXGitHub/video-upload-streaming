@@ -3,20 +3,19 @@
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { apiClient } from "@/lib/api-client"
 
 interface User {
   id: string
   email: string
+  username: string
   role: "admin" | "editor" | "viewer"
-  tenant: string
 }
 
 interface AuthContextType {
   user: User | null
   loading: boolean
   login: (email: string, password: string) => Promise<boolean>
-  register: (email: string, password: string) => Promise<boolean>
+  register: (username: string, email: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
 }
 
@@ -33,21 +32,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const token = apiClient.getToken()
-      if (token) {
-        // Token exists, assume user is logged in
-        // In a real app, you might want to validate the token with the backend
-        const decodedUser = JSON.parse(atob(token.split(".")[1]))
-        setUser({
-          id: decodedUser.id,
-          email: decodedUser.email,
-          role: decodedUser.role,
-          tenant: decodedUser.tenant,
-        })
+      const response = await fetch("/api/auth/me", {
+        method: "GET",
+        credentials: "include",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
       }
     } catch (error) {
       console.error("[v0] Auth check error:", error)
-      apiClient.setToken(null)
     } finally {
       setLoading(false)
     }
@@ -55,20 +50,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const data = await apiClient.login(email, password)
-      setUser(data.user)
-      return true
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+        return true
+      }
+      return false
     } catch (error) {
       console.error("[v0] Login error:", error)
       return false
     }
   }
 
-  const register = async (email: string, password: string): Promise<boolean> => {
+  const register = async (username: string, email: string, password: string): Promise<boolean> => {
     try {
-      const data = await apiClient.register(email, password)
-      setUser(data.user)
-      return true
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username, email, password }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+        return true
+      }
+      return false
     } catch (error) {
       console.error("[v0] Registration error:", error)
       return false
@@ -77,7 +92,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      apiClient.logout()
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      })
       setUser(null)
       router.push("/login")
     } catch (error) {

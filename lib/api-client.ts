@@ -47,23 +47,16 @@ class APIClient {
     return response.json()
   }
 
-  // Auth
+  // Auth - Note: Authentication is now handled by Supabase via lib/auth.ts
+  // These methods are kept for backwards compatibility with the backend API
   async login(email: string, password: string) {
-    const data = await this.request("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    })
-    this.setToken(data.token)
-    return data
+    // Login is now handled server-side in lib/auth.ts
+    throw new Error("Use server-side login function")
   }
 
   async register(email: string, password: string, role?: string) {
-    const data = await this.request("/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ email, password, role }),
-    })
-    this.setToken(data.token)
-    return data
+    // Registration is now handled server-side in lib/auth.ts
+    throw new Error("Use server-side register function")
   }
 
   logout() {
