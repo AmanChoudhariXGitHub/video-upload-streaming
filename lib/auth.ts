@@ -12,14 +12,15 @@ export interface User {
   created_at: string
 }
 
-async function fetchSupabase(table: string, options: RequestInit) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    ...options,
+async function fetchSupabase(table: string, query?: string) {
+  const url = query ? `${SUPABASE_URL}/rest/v1/${table}?${query}` : `${SUPABASE_URL}/rest/v1/${table}`
+  
+  const response = await fetch(url, {
+    method: "GET",
     headers: {
       "Content-Type": "application/json",
       apikey: SUPABASE_KEY || "",
       Authorization: `Bearer ${SUPABASE_KEY}`,
-      ...options.headers,
     },
   })
 
@@ -40,10 +41,7 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 
   try {
-    const data = await fetchSupabase("users", {
-      method: "GET",
-      body: JSON.stringify({ select: "id,email,username,role,created_at", id: `eq.${userId}` }),
-    })
+    const data = await fetchSupabase("users", `id=eq.${userId}&select=id,email,username,role,created_at`)
 
     if (Array.isArray(data) && data.length > 0) {
       return data[0] as User
@@ -73,20 +71,18 @@ export async function requireAdmin(): Promise<User> {
 
 export async function login(email: string, password: string): Promise<{ user: User; sessionId: string } | null> {
   try {
-    const data = await fetchSupabase("users", {
-      method: "GET",
-    })
+    const data = await fetchSupabase("users", `email=eq.${encodeURIComponent(email)}`)
 
-    if (!Array.isArray(data)) {
+    if (!Array.isArray(data) || data.length === 0) {
+      console.error("[v0] User not found:", email)
       return null
     }
 
-    const user = data.find(
-      (u: any) => u.email === email && u.password_hash === password,
-    )
-
-    if (!user) {
-      console.error("[v0] User not found or password incorrect:", email)
+    const user = data[0]
+    
+    // Compare password
+    if (user.password_hash !== password) {
+      console.error("[v0] Password mismatch for user:", email)
       return null
     }
 
@@ -121,13 +117,17 @@ export async function register(
   password: string,
 ): Promise<{ user: User; sessionId: string } | null> {
   try {
-    // Check if user already exists
-    const existingUsers = await fetchSupabase("users", {
-      method: "GET",
-    })
+    // Check if user already exists by email
+    const existingByEmail = await fetchSupabase("users", `email=eq.${encodeURIComponent(email)}`)
+    if (Array.isArray(existingByEmail) && existingByEmail.length > 0) {
+      console.error("[v0] Email already exists")
+      return null
+    }
 
-    if (Array.isArray(existingUsers) && existingUsers.some((u: any) => u.email === email || u.username === username)) {
-      console.error("[v0] User already exists")
+    // Check if user already exists by username
+    const existingByUsername = await fetchSupabase("users", `username=eq.${encodeURIComponent(username)}`)
+    if (Array.isArray(existingByUsername) && existingByUsername.length > 0) {
+      console.error("[v0] Username already exists")
       return null
     }
 
@@ -138,6 +138,7 @@ export async function register(
         "Content-Type": "application/json",
         apikey: SUPABASE_KEY || "",
         Authorization: `Bearer ${SUPABASE_KEY}`,
+        Prefer: "return=representation",
       },
       body: JSON.stringify({
         email,
