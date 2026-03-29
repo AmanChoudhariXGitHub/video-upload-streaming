@@ -4,7 +4,7 @@ Express.js backend with Socket.io for real-time video processing updates.
 
 ## Project Structure
 
-```
+\`\`\`
 backend/
 ├── src/
 │   ├── config/          # Configuration files
@@ -16,19 +16,19 @@ backend/
 │   └── server.js        # Entry point
 ├── storage/             # File storage
 └── package.json
-```
+\`\`\`
 
 ## Running the Server
 
 Development mode with auto-restart:
-```bash
+\`\`\`bash
 npm run dev
-```
+\`\`\`
 
 Production mode:
-```bash
+\`\`\`bash
 npm start
-```
+\`\`\`
 
 ## Environment Variables
 

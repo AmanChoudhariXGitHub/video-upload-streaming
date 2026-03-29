@@ -1,8 +1,8 @@
 import { cookies } from "next/headers"
-import { createClient } from "@supabase/supabase-js"
-import bcrypt from "bcryptjs"
 
 const SESSION_COOKIE_NAME = "session"
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export interface User {
   id: string
@@ -12,10 +12,25 @@ export interface User {
   created_at: string
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-)
+async function fetchSupabase(table: string, query?: string) {
+  const url = query ? `${SUPABASE_URL}/rest/v1/${table}?${query}` : `${SUPABASE_URL}/rest/v1/${table}`
+  
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_KEY || "",
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.message || "Supabase request failed")
+  }
+
+  return response.json()
+}
 
 export async function getCurrentUser(): Promise<User | null> {
   const cookieStore = await cookies()
@@ -26,17 +41,12 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 
   try {
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, email, username, role, created_at")
-      .eq("id", userId)
-      .single()
+    const data = await fetchSupabase("users", `id=eq.${userId}&select=id,email,username,role,created_at`)
 
-    if (error || !data) {
-      return null
+    if (Array.isArray(data) && data.length > 0) {
+      return data[0] as User
     }
-
-    return data as User
+    return null
   } catch (error) {
     console.error("[v0] Error getting current user:", error)
     return null
@@ -61,36 +71,32 @@ export async function requireAdmin(): Promise<User> {
 
 export async function login(email: string, password: string): Promise<{ user: User; sessionId: string } | null> {
   try {
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, email, username, role, password_hash, created_at")
-      .eq("email", email)
-      .single()
+    const data = await fetchSupabase("users", `email=eq.${encodeURIComponent(email)}`)
 
-    if (error || !data) {
+    if (!Array.isArray(data) || data.length === 0) {
       console.error("[v0] User not found:", email)
       return null
     }
 
-    // Verify password
-    const passwordMatch = await bcrypt.compare(password, data.password_hash)
-
-    if (!passwordMatch) {
+    const user = data[0]
+    
+    // Compare password
+    if (user.password_hash !== password) {
       console.error("[v0] Password mismatch for user:", email)
       return null
     }
 
-    const user: User = {
-      id: data.id,
-      email: data.email,
-      username: data.username,
-      role: data.role,
-      created_at: data.created_at,
+    const userData: User = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      created_at: user.created_at,
     }
 
     // Set cookie with user ID as session
     const cookieStore = await cookies()
-    cookieStore.set(SESSION_COOKIE_NAME, data.id, {
+    cookieStore.set(SESSION_COOKIE_NAME, user.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -98,7 +104,7 @@ export async function login(email: string, password: string): Promise<{ user: Us
       path: "/",
     })
 
-    return { user, sessionId: data.id }
+    return { user: userData, sessionId: user.id }
   } catch (error) {
     console.error("[v0] Login error:", error)
     return null
@@ -111,49 +117,57 @@ export async function register(
   password: string,
 ): Promise<{ user: User; sessionId: string } | null> {
   try {
-    // Check if user already exists
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select("id")
-      .or(`email.eq.${email},username.eq.${username}`)
-      .single()
-
-    if (existingUser) {
-      console.error("[v0] User already exists")
+    // Check if user already exists by email
+    const existingByEmail = await fetchSupabase("users", `email=eq.${encodeURIComponent(email)}`)
+    if (Array.isArray(existingByEmail) && existingByEmail.length > 0) {
+      console.error("[v0] Email already exists")
       return null
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10)
+    // Check if user already exists by username
+    const existingByUsername = await fetchSupabase("users", `username=eq.${encodeURIComponent(username)}`)
+    if (Array.isArray(existingByUsername) && existingByUsername.length > 0) {
+      console.error("[v0] Username already exists")
+      return null
+    }
 
-    // Create user
-    const { data, error } = await supabase
-      .from("users")
-      .insert({
+    // Create user with plain password (for demo purposes)
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY || "",
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
         email,
         username,
-        password_hash: passwordHash,
+        password_hash: password,
         role: "viewer",
-      })
-      .select("id, email, username, role, created_at")
-      .single()
+      }),
+    })
 
-    if (error || !data) {
+    if (!response.ok) {
+      const error = await response.json()
       console.error("[v0] Error creating user:", error)
       return null
     }
 
-    const user: User = {
-      id: data.id,
-      email: data.email,
-      username: data.username,
-      role: data.role,
-      created_at: data.created_at,
+    const data = await response.json()
+    const newUser = Array.isArray(data) ? data[0] : data
+
+    const userData: User = {
+      id: newUser.id,
+      email: newUser.email,
+      username: newUser.username,
+      role: newUser.role,
+      created_at: newUser.created_at,
     }
 
     // Set cookie with user ID as session
     const cookieStore = await cookies()
-    cookieStore.set(SESSION_COOKIE_NAME, data.id, {
+    cookieStore.set(SESSION_COOKIE_NAME, newUser.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -161,7 +175,7 @@ export async function register(
       path: "/",
     })
 
-    return { user, sessionId: data.id }
+    return { user: userData, sessionId: newUser.id }
   } catch (error) {
     console.error("[v0] Registration error:", error)
     return null

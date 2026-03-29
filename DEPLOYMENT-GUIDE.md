@@ -32,12 +32,12 @@ This guide provides step-by-step instructions for deploying the Video Upload and
    - **Start Command:** `npm start`
 
 4. **Add Environment Variables:**
-   ```
+   \`\`\`
    PORT=5000
    JWT_SECRET=your-super-secret-jwt-key-change-this
    NODE_ENV=production
    FRONTEND_URL=https://your-frontend-url.vercel.app
-   ```
+   \`\`\`
    
    **Important:** Replace `FRONTEND_URL` with your actual Vercel URL (you'll get this in Step 2)
 
@@ -118,17 +118,17 @@ This guide provides step-by-step instructions for deploying the Video Upload and
 ### Test Backend
 
 1. **Health Check:**
-   ```bash
+   \`\`\`bash
    curl https://your-backend-url.onrender.com/health
-   ```
+   \`\`\`
    Should return: `{"status":"ok"}`
 
 2. **Test Login:**
-   ```bash
+   \`\`\`bash
    curl -X POST https://your-backend-url.onrender.com/api/auth/login \
      -H "Content-Type: application/json" \
      -d '{"email":"admin@example.com","password":"admin123"}'
-   ```
+   \`\`\`
    Should return a JWT token
 
 ### Test Frontend

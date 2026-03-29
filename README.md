@@ -34,7 +34,7 @@ A full-stack video upload and streaming application with real-time processing up
 
 ## Project Structure
 
-```
+\`\`\`
 video-upload-streaming/
 ├── frontend/                # Next.js frontend application
 │   ├── app/                # Next.js app directory
@@ -70,7 +70,7 @@ video-upload-streaming/
 │   └── .env
 ├── README.md
 └── DEPLOYMENT-GUIDE.md
-```
+\`\`\`
 
 ## Quick Start
 
@@ -82,51 +82,51 @@ video-upload-streaming/
 ### Installation
 
 1. **Clone the repository**
-```bash
+\`\`\`bash
 git clone <repository-url>
 cd video-upload-streaming
-```
+\`\`\`
 
 2. **Install frontend dependencies**
-```bash
+\`\`\`bash
 cd frontend
 npm install
 cd ..
-```
+\`\`\`
 
 3. **Install backend dependencies**
-```bash
+\`\`\`bash
 cd backend
 npm install
 cd ..
-```
+\`\`\`
 
 4. **Configure environment variables**
 
 Create `frontend/.env.local`:
-```env
+\`\`\`env
 NEXT_PUBLIC_API_URL=http://localhost:5000
-```
+\`\`\`
 
 Create `backend/.env`:
-```env
+\`\`\`env
 PORT=5000
 JWT_SECRET=your-secret-key-change-in-production
 NODE_ENV=development
 FRONTEND_URL=http://localhost:3000
-```
+\`\`\`
 
 5. **Start the backend server**
-```bash
+\`\`\`bash
 cd backend
 npm run dev
-```
+\`\`\`
 
 6. **Start the frontend (in a new terminal)**
-```bash
+\`\`\`bash
 cd frontend
 npm run dev
-```
+\`\`\`
 
 7. **Access the application**
 - Frontend: http://localhost:3000
@@ -147,26 +147,26 @@ The application comes with pre-configured demo accounts:
 ### Authentication
 
 **POST** `/api/auth/register`
-```json
+\`\`\`json
 {
   "email": "user@example.com",
   "password": "password123",
   "role": "editor"
 }
-```
+\`\`\`
 
 **POST** `/api/auth/login`
-```json
+\`\`\`json
 {
   "email": "user@example.com",
   "password": "password123"
 }
-```
+\`\`\`
 
 ### Video Upload
 
 **POST** `/api/videos/init` - Initialize upload
-```json
+\`\`\`json
 {
   "filename": "video.mp4",
   "filesize": 1048576,
@@ -174,7 +174,7 @@ The application comes with pre-configured demo accounts:
   "title": "My Video",
   "description": "Description"
 }
-```
+\`\`\`
 
 **POST** `/api/videos/chunk` - Upload chunk (multipart/form-data)
 - `videoId`: Video ID
@@ -183,12 +183,12 @@ The application comes with pre-configured demo accounts:
 - `chunk`: File chunk (binary)
 
 **POST** `/api/videos/complete` - Complete upload
-```json
+\`\`\`json
 {
   "videoId": "123",
   "totalChunks": 10
 }
-```
+\`\`\`
 
 ### Video Management
 
@@ -197,12 +197,12 @@ The application comes with pre-configured demo accounts:
 **GET** `/api/videos/:id` - Get video details
 
 **PUT** `/api/videos/:id` - Update video metadata
-```json
+\`\`\`json
 {
   "title": "Updated Title",
   "description": "Updated Description"
 }
-```
+\`\`\`
 
 **DELETE** `/api/videos/:id` - Delete video
 
@@ -223,31 +223,31 @@ The application comes with pre-configured demo accounts:
 **GET** `/api/admin/users` - List all users
 
 **PUT** `/api/admin/users/:id/role` - Update user role
-```json
+\`\`\`json
 {
   "role": "editor"
 }
-```
+\`\`\`
 
 **PUT** `/api/admin/videos/:id/sensitivity` - Update sensitivity status
-```json
+\`\`\`json
 {
   "status": "safe"
 }
-```
+\`\`\`
 
 **GET** `/api/admin/jobs` - Processing jobs list
 
 ### Analytics
 
 **POST** `/api/analytics/track/view` - Track video view
-```json
+\`\`\`json
 {
   "videoId": "123",
   "watchTime": 120,
   "quality": "1080p"
 }
-```
+\`\`\`
 
 **GET** `/api/analytics/video/:id` - Video analytics (admin only)
 
@@ -286,7 +286,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
 
 ### Running Tests
 
-```bash
+\`\`\`bash
 # Frontend tests
 cd frontend
 npm test
@@ -294,11 +294,11 @@ npm test
 # Backend tests
 cd backend
 npm test
-```
+\`\`\`
 
 ### Building for Production
 
-```bash
+\`\`\`bash
 # Frontend build
 cd frontend
 npm run build
@@ -306,7 +306,7 @@ npm run build
 # Backend (no build needed, runs on Node.js)
 cd backend
 npm start
-```
+\`\`\`
 
 ## Deployment
 
@@ -331,12 +331,12 @@ npm start
 ### Deployment Requirements Checklist
 
 ✅ **Repository Structure**
-```
+\`\`\`
 video-upload-streaming/
   ├── frontend/    (Next.js app)
   ├── backend/     (Express API)
   └── README.md
-```
+\`\`\`
 
 ✅ **Backend Features**
 - Node.js + Express server
