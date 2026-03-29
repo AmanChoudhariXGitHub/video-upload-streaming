@@ -20,11 +20,11 @@ The Express backend must be deployed before the frontend. Choose one option:
 4. **Important**: Set Root Directory to `/backend`
 5. Railway will auto-detect Node.js and use `npm start`
 6. Add environment variables:
-   ```
+   \`\`\`
    NODE_ENV=production
    JWT_SECRET=your-super-secret-jwt-key-change-this
    PORT=5000
-   ```
+   \`\`\`
 7. Copy your Railway URL (e.g., `https://yourapp.railway.app`)
 
 #### Option B: Render
@@ -57,35 +57,35 @@ The Express backend must be deployed before the frontend. Choose one option:
    - Navigate to: Settings → General
 
 2. **Configure Build Settings**
-   ```
+   \`\`\`
    Framework Preset: Next.js
    Root Directory: ./  (leave as root)
    Build Command: npm run build
    Output Directory: .next (auto-detected)
    Install Command: npm install
-   ```
+   \`\`\`
 
 3. **Add Environment Variables**
    - Go to Settings → Environment Variables
    - Add this variable:
-     ```
+     \`\`\`
      NEXT_PUBLIC_API_URL = https://your-backend-url.railway.app/api
-     ```
+     \`\`\`
    - Replace with your actual backend URL from Step 1
 
 4. **Update vercel.json**
    - Edit `vercel.json` in your repo
    - Update the backend URL in the rewrites section:
-     ```json
+     \`\`\`json
      "destination": "https://your-actual-backend-url.railway.app/api/:path*"
-     ```
+     \`\`\`
 
 5. **Trigger Deployment**
-   ```bash
+   \`\`\`bash
    git add .
    git commit -m "fix: configure vercel deployment"
    git push origin main
-   ```
+   \`\`\`
 
 6. **Verify Deployment**
    - Vercel will automatically detect the push
@@ -98,9 +98,9 @@ After deploying frontend, update your backend to allow requests:
 
 1. Go to your backend deployment (Railway/Render)
 2. Add environment variable:
-   ```
+   \`\`\`
    FRONTEND_URL=https://your-app.vercel.app
-   ```
+   \`\`\`
 3. Redeploy backend
 
 ## Common Deployment Issues
@@ -195,7 +195,7 @@ When your app grows:
 ## Environment Variables Reference
 
 ### Backend (.env)
-```bash
+\`\`\`bash
 # Server
 NODE_ENV=production
 PORT=5000
@@ -213,13 +213,13 @@ MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/dbname
 AWS_ACCESS_KEY_ID=your-key
 AWS_SECRET_ACCESS_KEY=your-secret
 AWS_BUCKET_NAME=your-bucket
-```
+\`\`\`
 
 ### Frontend (.env.local)
-```bash
+\`\`\`bash
 # Backend API
 NEXT_PUBLIC_API_URL=https://your-backend.railway.app/api
-```
+\`\`\`
 
 ## Support
 
@@ -235,7 +235,7 @@ If you encounter issues:
 
 To run locally after cloning:
 
-```bash
+\`\`\`bash
 # Backend
 cd backend
 npm install
@@ -245,6 +245,6 @@ npm run dev
 # Frontend (in new terminal)
 npm install
 npm run dev
-```
+\`\`\`
 
 Visit `http://localhost:3000` for frontend, backend runs on `http://localhost:5000`

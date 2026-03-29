@@ -4,7 +4,7 @@
 
 This application follows a client-server architecture with real-time communication capabilities.
 
-```
+\`\`\`
 ┌─────────────────┐         ┌──────────────────┐
 │                 │         │                  │
 │  Next.js        │◄───────►│  Express         │
@@ -24,13 +24,13 @@ This application follows a client-server architecture with real-time communicati
                             │  Storage        │
                             │                 │
                             └─────────────────┘
-```
+\`\`\`
 
 ## Data Flow
 
 ### Upload Flow
 
-```
+\`\`\`
 User → Frontend → Backend → Storage
                       │
                       ▼
@@ -38,11 +38,11 @@ User → Frontend → Backend → Storage
                       │
                       ▼
             Socket.io Updates → Frontend
-```
+\`\`\`
 
 ### Streaming Flow
 
-```
+\`\`\`
 User → Frontend → Backend → Storage
                       │
                       ▼
@@ -50,7 +50,7 @@ User → Frontend → Backend → Storage
                       │
                       ▼
              Partial Content Response
-```
+\`\`\`
 
 ## Component Responsibilities
 
